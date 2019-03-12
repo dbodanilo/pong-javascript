@@ -1,0 +1,30 @@
+body {
+    font-family: 'Consolas', serif;
+    font-size: 12pt;
+    background-color: #000000;
+    color: #ffffff;
+    position: relative;
+}
+
+h1 {
+    font-size: 2em;
+    text-align: center;
+}
+
+p {
+    padding-left: 3rem;
+}
+
+div {
+    padding: 0;
+    margin: auto;
+    display: block;
+    position: relative;
+}
+
+canvas {
+    padding: 0;
+    margin: auto;
+    display: block;
+    border: 2px solid #ddd;
+}
