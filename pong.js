@@ -1,27 +1,48 @@
-// #region variable definitions
+// global variables
+//#region
 var game = document.querySelector("canvas");
 var ctx = game.getContext("2d");
 
-var width = game.width;
-var height = game.height;
+var maxWidth = game.width;
+var maxHeight = game.height;
 
-var elemWidth = width/50;
-var padHeight = 8*elemWidth;
-var elemVel = elemWidth/2;
-
-var stdPadVel = 2*elemWidth;
-var stdBallVel = elemVel;
+var padWidth = maxWidth / 50;
+var padHeight = 3 * padWidth;
+var ballVel = padWidth / 2;
 var ballAccel = 1.01;
 
-var velFactor = 0;
+var stdPadVel = 5*padWidth/4;
+var stdBallVel = ballVel;
+
+// IMPLEMENT: constant resultant ball velocity
+/*
+tennisBall.velY = ballVel * ratio * Math.pow(2, 1/2) / 2;
+tennisBall.velX = Math.pow(Math.pow(ballVel, 2) - Math.pow(tennisBall.velY, 2), 1/2);
+*/
 
 var leftCount = 0;
 var rightCount = 0;
 
 var keys = [];
+
+/*
+W = 87   I = 73
+S = 83   K = 75
+*/
+var moves = {
+    w: 87,
+    s: 83,
+    i: 73,
+    k: 75
+};
+
+var tennisBall;
+var leftpad;
+var rightPad;
 //#endregion
 
-//#region Element definition
+// Element definition
+//#region
 function Element(x, y, w, h, v) {
     this.posX = x;
     this.posY = y;
@@ -29,16 +50,16 @@ function Element(x, y, w, h, v) {
     this.height = h;
     this.velY = v;
 }
-
-Element.prototype.draw = function() {
+Element.prototype.draw = function () {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(this.posX, this.posY, this.width, this.height);
 }
 //#endregion
 
-// TennisBall and Pad don't use parameters other than those defined in Element
 // Main reason to inherit from Element: common draw() method
-//#region TennisBall definition
+
+// TennisBall definition
+//#region
 function TennisBall(x, y, w, h, velY, velX) {
     Element.call(this, x, y, w, h, velY);
     this.velX = velX;
@@ -46,77 +67,108 @@ function TennisBall(x, y, w, h, velY, velX) {
 TennisBall.prototype = Object.create(Element.prototype);
 TennisBall.prototype.constructor = TennisBall;
 
-var tennisBall = new TennisBall(
-    width/2 - elemWidth/2,
-    height/2 - elemWidth/2,
-    elemWidth,
-    elemWidth,
-    0, // pure horizontal movement initially
-    stdBallVel
-);
+TennisBall.prototype.bounce = function(horizontal) {
+    // augment the base for both (x & y) ball velocities
+    ballVel *= ballAccel;
+    tennisBall.velX *= ballAccel;
+    tennisBall.velY *= ballAccel;
+    if (horizontal) {
+        tennisBall.posX -= tennisBall.velX;
+        tennisBall.velX = -tennisBall.velX;
+    } else if (!horizontal) {
+        tennisBall.posY -= tennisBall.velY;
+        tennisBall.velY = -tennisBall.velY;
+    }
+}
+TennisBall.prototype.move = function() {
+    this.posX += this.velX;
+    this.posY += this.velY;
+    canvasBallCollision();
+    ballPadCollision("right");
+    ballPadCollision("left");
+}
 //#endregion
 
-//#region Pad definition
+// Pad definition
+//#region
 function Pad(x, y, w, h, v) {
     Element.call(this, x, y, w, h, v);
 }
 Pad.prototype = Object.create(Element.prototype);
 Pad.prototype.constructor = Pad;
 
-var leftPad = new Pad(
-    width/100, 
-    height/2 - padHeight/2, 
-    elemWidth, 
-    padHeight, 
-    stdPadVel
-);
-var rightPad = new Pad(
-    width - (elemWidth + width/100), 
-    height/2 - padHeight/2, 
-    elemWidth, 
-    padHeight, 
-    stdPadVel
-);
+Pad.prototype.canvasCollision = function() {
+    let topY = this.posY;
+    let bottomY = topY + this.height;
+
+    // top collisions
+    if (topY <= this.height) {
+        this.posY = this.height + this.width;
+    }
+    // bottom collisions
+    else if (bottomY >= (maxHeight - this.height)) {
+        this.posY = maxHeight - (2*this.height + this.width);
+    }
+}
 //#endregion
 
-//#region Movement
-/*
-W = 119 or 87   I = 105 or 73
-S = 115 or 83   K = 107 or 75
-*/
+// Movement
+//#region
 function moveLeftPad(keys) {
-    if (keys[87] || keys[119]) {
+    if (keys[moves.w]) {
         leftPad.posY -= leftPad.velY;
-    } else if (keys[83] || keys[115]) {
+    } else if (keys[moves.s]) {
         leftPad.posY += leftPad.velY;
     }
-    canvasPadCollision(leftPad);
+    leftPad.canvasCollision();
 }
 
 // Player v Bot
 function rightPadBot() {
+    setTimeout(rightPadBot, 1000/12);
     let padTopY = rightPad.posY;
     let ballTopY = tennisBall.posY;
 
-    let padMidY = padTopY + rightPad.height/2;
-    let ballMidY = ballTopY + tennisBall.height/2;
+    let padMidY = padTopY + rightPad.height / 2;
+    let ballMidY = ballTopY + tennisBall.height / 2;
 
-    if (tennisBall.velX > 0 && tennisBall.posX > width/3) {
-
-        if (ballMidY > padMidY) {
+    // pad moves only when the ball comes at its direction, after the first third of the canvas
+    if (tennisBall.velX > 0 && tennisBall.posX > maxWidth / 3) {
+        let dist = ballMidY - padMidY;
+        // ball a lot under pad's center
+        if (dist >= 3*stdPadVel/4) {
             rightPad.posY += rightPad.velY;
-        } else if (ballMidY < padMidY) {
+        // ball a lot above pad's center
+        } else if (dist <= -3*stdPadVel/4) {
             rightPad.posY -= rightPad.velY;
-        } else if (tennisBall.velY > 0) {
-            rightPad.posY += rightPad.velY;
-        } else if (tennisBall.velY < 0) {
-            rightPad.posY -= rightPad.velY;
+        // ball slightly under pad's center, ball y velocity determines movement
+        } else if (dist > 0) {
+            if (tennisBall.velY >= 0) {
+                rightPad.posY += rightPad.velY;
+            } else if (tennisBall.velY < 0) {
+                rightPad.posY -= rightPad.velY;
+            }
+        // ball slightly above pad's center, ball y velocity determines movement
+        } else if (dist < 0) {
+            if (tennisBall.velY <= 0) {
+                rightPad.posY -= rightPad.velY;
+            } else if (tennisBall.velY > 0) {
+                rightPad.posY += rightPad.velY;
+            }
+        // ball exactly on pad's center
+        } else if (dist === 0) {
+            if (tennisBall.velY < 0) {
+                rightPad.posY -= rightPad.velY;
+            } else if (tennisBall.velY > 0) {
+                rightPad.posY += rightPad.velY;
+            // ball moving horizontally
+            } else {
+                // does nothing
+            }
         }
-    }    
-    canvasPadCollision(rightPad);
+    }
+    rightPad.canvasCollision();
 }
-
-setInterval(rightPadBot, 90);
 
 // 2 Players
 /* 
@@ -126,7 +178,7 @@ function moveRightPad(keys) {
     } else if (keys[107] || keys[75]) {
         rightPad.posY += rightPad.velY;
     }
-    canvasPadCollision(rightPad);
+    rightPad.canvasCollision();
 }
 */
 
@@ -135,57 +187,21 @@ function getKeys(event) {
     moveLeftPad(keys);
     // moveRightPad(keys);
 }
-window.addEventListener("keydown", getKeys);
-window.addEventListener("keyup", getKeys);
-
-function moveTennisBall() {
-    tennisBall.posX += tennisBall.velX;
-    tennisBall.posY += tennisBall.velY;
-    canvasBallCollision(tennisBall);
-    ballPadCollision("right");
-    ballPadCollision("left");
-}
 //#endregion
 
-//#region Collisions
-// automates bounce action
-function collideBall(coord) {
-    tennisBall.velX *= ballAccel;
-    elemVel *= ballAccel;
-    if (coord === "y") {
-        tennisBall.posY -= tennisBall.velY;
-        tennisBall.velY = -tennisBall.velY;
-    } else if (coord === "x") {
-        tennisBall.posX -= tennisBall.velX;
-        tennisBall.velX = -tennisBall.velX;
-    }
-}
-
-function canvasPadCollision(pad) {
-    let topY = pad.posY;
-    let bottomY = topY + pad.height;
-
-    // top collisions
-    if (topY <= tennisBall.height) {
-        pad.posY = 2*tennisBall.height;
-    }
-    // bottom collisions
-    else if (bottomY >= (height - tennisBall.height)) {
-        pad.posY = (height - pad.height) - 2*tennisBall.height;
-    }
-}
-
+// Collisions
+//#region
 function canvasBallCollision() {
     function score(side) {
-        if(side === "left" && leftCount < 5) {
+        if (side === "left" && leftCount < 5) {
             leftCount += 1;
             tennisBall.velX = stdBallVel;
-        } else if(side === "right" && rightCount < 5) {
+        } else if (side === "right" && rightCount < 5) {
             rightCount += 1;
             tennisBall.velX = -stdBallVel;
         }
         if (leftCount === 5 || rightCount === 5) {
-            resetBall();
+            reset();
         }
         drawScore();
     }
@@ -196,20 +212,20 @@ function canvasBallCollision() {
     let bottomY = topY + tennisBall.height;
 
     // top and bottom collisions
-    if (topY <= 0 || bottomY >= height) {
-        collideBall("y");
+    if (topY <= 0 || bottomY >= maxHeight) {
+        // vertical collision
+        let bounceX = false;
+        tennisBall.bounce(bounceX);
     }
     // left and right collisions
     if (leftX <= 0) {
-        resetBall();
+        reset();
         score("right");
-        // collideBall("x");
-        
-    } else if(rightX >= width) {
-        resetBall();
+
+    } else if (rightX >= maxWidth) {
+        reset();
         score("left");
-        // collideBall("x");
-        
+
     }
 }
 
@@ -220,16 +236,16 @@ function ballPadCollision(side) {
         let ballBottomY = tennisBall.posY + tennisBall.height;
         let ballRelY = ballBottomY - padTopY;
 
-        let ratio = ballRelY/(pad.height+tennisBall.height);
-        ratio = Math.ceil(100*ratio)/100; // precision set at 100th of a pad
-        ratio = (2*ratio - 1);
-        return(ratio);
+        let ratio = ballRelY / (pad.height + tennisBall.height);
+        ratio = Math.ceil(100 * ratio) / 100; // precision set at 100th of a pad
+        ratio = (2 * ratio - 1);
+        return (ratio);
     }
 
     if (side === "left") {
         let ballLeftX = tennisBall.posX;
         let padRightX = leftPad.posX + leftPad.width;
-        
+
         let ballTopY = tennisBall.posY;
         let ballBottomY = ballTopY + tennisBall.height;
         let padTopY = leftPad.posY;
@@ -237,11 +253,16 @@ function ballPadCollision(side) {
         // Compare Y coordinates first
         if (ballBottomY >= padTopY && ballTopY <= padBottomY) {
             // Then compare X coordinates
-            if (ballLeftX <= padRightX) {
-                collideBall("x");
+            if (ballLeftX <= padRightX && ballLeftX >= leftPad.posX) {
+                // horizontal collision
+                let bounceX = true;
+                tennisBall.bounce(bounceX);
+
                 tennisBall.posX = padRightX + 1;
                 let ratio = relativeY(leftPad);
-                tennisBall.velY = elemVel*ratio;
+                tennisBall.velY = ballVel * ratio * Math.pow(2, 1/2) / 2;
+                tennisBall.velX = Math.pow(Math.pow(ballVel, 2) - Math.pow(tennisBall.velY, 2), 1/2);
+                console.log(tennisBall.velY, tennisBall.velX);
             }
         }
     } else if (side === "right") {
@@ -253,11 +274,16 @@ function ballPadCollision(side) {
         let padTopY = rightPad.posY;
         let padBottomY = padTopY + rightPad.height;
         if (ballBottomY >= padTopY && ballTopY <= padBottomY) {
-            if (ballRightX >= padLeftX) {
-                collideBall("x");
+            if (ballRightX >= padLeftX && ballRightX <= (padLeftX + rightPad.width)) {
+                // horizontal collision
+                let bounceX = true;
+                tennisBall.bounce(bounceX);
+
                 tennisBall.posX = padLeftX - (tennisBall.width + 1);
                 let ratio = relativeY(rightPad);
-                tennisBall.velY = elemVel*ratio;
+                tennisBall.velY = ballVel * ratio * Math.pow(2, 1/2) / 2;
+                tennisBall.velX = -Math.pow(Math.pow(ballVel, 2) - Math.pow(tennisBall.velY, 2), 1/2);
+                console.log(tennisBall.velY, tennisBall.velX);
             }
         }
     }
@@ -269,9 +295,9 @@ function drawDashed() {
     ctx.beginPath();
     ctx.strokeStyle = "#ffffff";
 
-    ctx.setLineDash([elemWidth, elemWidth/2]);
-    ctx.moveTo(width/2, 0);
-    ctx.lineTo(width/2, height);
+    ctx.setLineDash([padWidth, padWidth / 2]);
+    ctx.moveTo(maxWidth / 2, 0);
+    ctx.lineTo(maxWidth / 2, maxHeight);
     ctx.stroke();
 }
 
@@ -280,21 +306,25 @@ function drawScore() {
     ctx.beginPath();
     ctx.strokeStyle = "#ffffff";
     ctx.setLineDash([]);
-    ctx.font = width/8 + "px Consolas";
+    ctx.font = maxWidth / 8 + "px Consolas";
 
-    ctx.strokeText(leftCount, width/8, height/4);
+    ctx.strokeText(leftCount, maxWidth / 8, maxHeight / 4);
 
     ctx.beginPath();
     ctx.strokeStyle = "#ffffff";
     ctx.setLineDash([]);
-    ctx.font = width/8 + "px Consolas";
+    ctx.font = maxWidth / 8 + "px Consolas";
 
-    ctx.strokeText(rightCount, 6*width/8, height/4);
+    ctx.strokeText(rightCount, 6 * maxWidth / 8, maxHeight / 4);
 }
 
 function drawAll() {
-    ctx.clearRect(0, 0, width, height);
-    
+    if (leftCount !== "(:" && rightCount !== ":)") {
+        window.requestAnimationFrame(drawAll);
+    }
+
+    ctx.clearRect(0, 0, maxWidth, maxHeight);
+
     drawDashed();
     drawScore();
 
@@ -302,41 +332,69 @@ function drawAll() {
     leftPad.draw();
     tennisBall.draw();
 
-    moveTennisBall(tennisBall);
-    
-    window.requestAnimationFrame(drawAll);
+    tennisBall.move();
 }
 //#endregion
 
-//#region Resets
+// Resets
+//#region
+
+tennisBall = new TennisBall(0, 0, 0, 0, 0, 0);
+leftPad = new Pad(0, 0, 0, 0, 0);
+rightPad = new Pad(0, 0, 0, 0, 0);
+
 function resetBall() {
-    tennisBall.posX = width/2 - elemWidth/2;
-    tennisBall.posY = height/2 - elemWidth/2;
-    tennisBall.velY = 0;
+    tennisBall.posX = maxWidth / 2 - padWidth / 4;
+    tennisBall.posY = maxHeight / 2 - padWidth / 4;
+    tennisBall.width = padWidth / 2;
+    tennisBall.height = padWidth / 2;
+    tennisBall.velY = 0; // pure horizontal movement initially
+    tennisBall.velX = stdBallVel;
 
     if (leftCount > 4 || rightCount > 4) {
         (leftCount === 5) ? leftCount = "(:" : rightCount = ":)";
         tennisBall.velX = 0;
 
-    } else if(leftCount !== "W" && rightCount !== "W") {
+    } else if (leftCount !== "(:" && rightCount !== ":)") {
         tennisBall.velX = stdBallVel;
     }
-    resetPads();
 }
 
 function resetPads() {
-    leftPad.posX = width/100;
-    leftPad.posY = height/2 - padHeight/2;
+    leftPad.posX = maxWidth / 10;
+    leftPad.posY = maxHeight / 2 - padHeight / 2;
+    leftPad.width = padHeight / 3;
+    leftPad.height = padHeight;
+    leftPad.velY = stdPadVel;
 
-    rightPad.posX = width - (elemWidth + width/100);
-    rightPad.posY = height/2 - padHeight/2;
+    rightPad.posX = maxWidth - (padWidth + maxWidth / 10);
+    rightPad.posY = leftPad.posY;
+    rightPad.width = leftPad.width;
+    rightPad.height = leftPad.height;
+    rightPad.velY = leftPad.velY;
+}
+
+function reset() {
+    resetBall();
+    resetPads();
+
+    if (window.onkeydown || window.onkeyup) {
+        window.removeEventListener("keydown", getKeys);
+        window.removeEventListener("keyup", getKeys);
+    }
 }
 //#endregion
 
-function main() {
-    resetBall();
-    resetPads();
+function start() {
+    reset();
+    rightPadBot();
+
+    if (!window.onkeydown || !window.onkeyup) {
+        window.addEventListener("keydown", getKeys);
+        window.addEventListener("keyup", getKeys);
+    }
+
     drawAll();
 }
 
-window.addEventListener("load", main);
+window.addEventListener("load", start);
