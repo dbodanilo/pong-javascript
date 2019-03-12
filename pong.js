@@ -7,10 +7,10 @@ var height = game.height;
 
 var elemWidth = width/50;
 var padHeight = 8*elemWidth;
-var elemVel = Math.pow(elemWidth, 1/2);
+var elemVel = elemWidth/2;
 
 var stdPadVel = 2*elemWidth;
-var stdBallVel = elemWidth/2;
+var stdBallVel = elemVel;
 var ballAccel = 1.01;
 
 var velFactor = 0;
@@ -93,6 +93,33 @@ function moveLeftPad(keys) {
     canvasPadCollision(leftPad);
 }
 
+// Player v Bot
+function rightPadBot() {
+    let padTopY = rightPad.posY;
+    let ballTopY = tennisBall.posY;
+
+    let padMidY = padTopY + rightPad.height/2;
+    let ballMidY = ballTopY + tennisBall.height/2;
+
+    if (tennisBall.velX > 0 && tennisBall.posX > width/3) {
+
+        if (ballMidY > padMidY) {
+            rightPad.posY += rightPad.velY;
+        } else if (ballMidY < padMidY) {
+            rightPad.posY -= rightPad.velY;
+        } else if (tennisBall.velY > 0) {
+            rightPad.posY += rightPad.velY;
+        } else if (tennisBall.velY < 0) {
+            rightPad.posY -= rightPad.velY;
+        }
+    }    
+    canvasPadCollision(rightPad);
+}
+
+setInterval(rightPadBot, 90);
+
+// 2 Players
+/* 
 function moveRightPad(keys) {
     if (keys[105] || keys[73]) {
         rightPad.posY -= rightPad.velY;
@@ -101,11 +128,12 @@ function moveRightPad(keys) {
     }
     canvasPadCollision(rightPad);
 }
+*/
 
 function getKeys(event) {
     keys[event.which] = event.type == "keydown";
     moveLeftPad(keys);
-    moveRightPad(keys);
+    // moveRightPad(keys);
 }
 window.addEventListener("keydown", getKeys);
 window.addEventListener("keyup", getKeys);
@@ -138,12 +166,12 @@ function canvasPadCollision(pad) {
     let bottomY = topY + pad.height;
 
     // top collisions
-    if (topY <= pad.height/2) {
-        pad.posY = pad.height/2 + pad.width;
+    if (topY <= tennisBall.height) {
+        pad.posY = 2*tennisBall.height;
     }
     // bottom collisions
-    else if (bottomY >= (height - pad.height/2)) {
-        pad.posY = (height - 1.5*pad.height) - pad.width;
+    else if (bottomY >= (height - tennisBall.height)) {
+        pad.posY = (height - pad.height) - 2*tennisBall.height;
     }
 }
 
